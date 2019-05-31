@@ -1,0 +1,12 @@
+{
+    "Parameters": [
+        {
+            "ParameterKey": "VpcCidr",
+            "ParameterValue": "10.210.0.0/16"
+        },
+        {
+            "ParameterKey": "VpcName",
+            "ParameterValue": "Sample"
+        }
+    ]
+}

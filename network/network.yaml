@@ -1,0 +1,230 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Application Network Stack
+Parameters:
+  VpcCidr:
+    Description: CIDR Block for the VPC
+    Type: String
+    AllowedPattern: '[a-zA-Z0-9]+\..+'
+    ConstraintDescription: Must be like 192.168.0.0/24
+  VpcName:
+    Description: Name for this VPC
+    Type: String
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsHostnames: true
+      Tags:
+      - Key: Name
+        Value: !Sub ${VpcName}-VPC
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Select
+        - 0
+        - !Cidr [ !GetAtt 'Vpc.CidrBlock', 16, 8 ]
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select
+      - 0
+      - Fn::GetAZs: !Ref 'AWS::Region'
+      MapPublicIpOnLaunch: true
+      Tags:
+      - Key: Name
+        Value: !Sub ${VpcName}-Public-Subnet1
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Select
+        - 1
+        - !Cidr [ !GetAtt 'Vpc.CidrBlock', 16, 8 ]
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select
+      - 1
+      - Fn::GetAZs: !Ref 'AWS::Region'
+      MapPublicIpOnLaunch: true
+      Tags:
+      - Key: Name
+        Value: !Sub ${VpcName}-Public-Subnet2
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Select
+        - 2
+        - !Cidr [ !GetAtt 'Vpc.CidrBlock', 16, 8 ]
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select
+      - 0
+      - Fn::GetAZs: !Ref 'AWS::Region'
+      Tags:
+      - Key: Name
+        Value: !Sub ${VpcName}-Private-Subnet1
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Select
+        - 3
+        - !Cidr [ !GetAtt 'Vpc.CidrBlock', 16, 8 ]
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select
+      - 1
+      - Fn::GetAZs: !Ref 'AWS::Region'
+      Tags:
+      - Key: Name
+        Value: !Sub ${VpcName}-Private-Subnet2
+  Igw:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Sub ${VpcName}-IGW
+  IgwAttachement:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref Igw
+      VpcId: !Ref Vpc
+  PublicSubnetRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+      - Key: Name
+        Value: !Sub ${VpcName}-Public-SubnetRT
+  PublicSubnetToInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicSubnetRT
+      GatewayId: !Ref Igw
+      DestinationCidrBlock: 0.0.0.0/0
+  PublicSubnetRTAssociationToPublicSubnet1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicSubnetRT
+      SubnetId: !Ref PublicSubnet1
+  PublicSubnetRTAssociationToPublicSubnet2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicSubnetRT
+      SubnetId: !Ref PublicSubnet2
+  PrivateSubnetRT1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+      - Key: Name
+        Value: !Sub ${VpcName}-Private-SubnetRT1
+  PrivateSubnetRT2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+      - Key: Name
+        Value: !Sub ${VpcName}-Private-SubnetRT2
+  VpcEndPoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref Vpc
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      RouteTableIds:
+      - !Ref PrivateSubnetRT1
+      - !Ref PrivateSubnetRT2
+    DependsOn: [ Vpc ]
+  PrivateSubnetRT1AssociationToPrivateSubnet1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRT1
+      SubnetId: !Ref PrivateSubnet1
+  PrivateSubnetRT2AssociationToPrivateSubnet2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRT2
+      SubnetId: !Ref PrivateSubnet2
+  NatEip1:
+    Type: AWS::EC2::EIP
+    Properties: {}
+  NatEip2:
+    Type: AWS::EC2::EIP
+    Properties: {}
+  NatGw1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      AllocationId:
+        Fn::GetAtt:
+        - NatEip1
+        - AllocationId
+      Tags:
+      - Key: Name
+        Value: !Sub ${VpcName}-NATGW1
+    DependsOn: [ IgwAttachement ]
+  NatGw2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      AllocationId:
+        Fn::GetAtt:
+        - NatEip2
+        - AllocationId
+      Tags:
+      - Key: Name
+        Value: !Sub ${VpcName}-NATGW2
+    DependsOn: [ IgwAttachement ]
+  PrivateSubnet1ToInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRT1
+      NatGatewayId: !Ref NatGw1
+      DestinationCidrBlock: 0.0.0.0/0
+  PrivateSubnet2ToInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRT2
+      NatGatewayId: !Ref NatGw2
+      DestinationCidrBlock: 0.0.0.0/0
+Outputs:
+  VpcCidr:
+    Description: VPC CIDR
+    Value: !GetAtt Vpc.CidrBlock
+    Export:
+      Name: !Sub ${VpcName}-VpcCidr
+  VpcId:
+    Description: VPC ID
+    Value: !Ref Vpc
+    Export:
+      Name: !Sub ${VpcName}-VpcId
+  PrivateSubnet1:
+    Description: Private Subnet 1 Id
+    Value: !Ref PrivateSubnet1
+    Export:
+     Name: !Sub ${VpcName}-Private-Subnet1
+  PrivateSubnet2:
+    Description: Private Subnet 2 Id
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub ${VpcName}-Private-Subnet2
+  PublicSubnet1:
+    Description: Public Subnet 1 Id
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub ${VpcName}-Public-Subnet1
+  PublicSubnet2:
+    Description: Public Subnet 2 Id
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub ${VpcName}-Public-Subnet2
+  PublicSubnetRT:
+    Description: Public Subnet Route Table
+    Value: !Ref PublicSubnetRT
+    Export:
+      Name: !Sub ${VpcName}-Public-Subnet-RT
+  PrivateSubnetRT1:
+    Description: Private Subnet Route Table 1
+    Value: !Ref PrivateSubnetRT1
+    Export:
+      Name: !Sub ${VpcName}-Private-Subnet-RT1
+  PrivateSubnetRT2:
+    Description: Private Subnet Route Table 2
+    Value: !Ref PrivateSubnetRT2
+    Export:
+      Name: !Sub ${VpcName}-Private-Subnet-RT2
