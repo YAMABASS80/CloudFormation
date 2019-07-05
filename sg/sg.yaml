@@ -1,0 +1,31 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Security Groups Stack
+Parameters:
+  VpcName:
+    Description: Name for this VPC
+    Type: String
+    Default: Sample
+Resources:
+  InstanceSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${VpcName}-Instance-Sg
+      GroupDescription: Instance Security Group
+      VpcId:
+        Fn::ImportValue: !Sub ${VpcName}-VpcId
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp:
+          Fn::ImportValue: !Sub ${VpcName}-VpcCidr
+        Description: Sample SG
+      Tags:
+      - Key: Name
+        Value: !Sub ${VpcName}-Instance-Sg
+Outputs:
+  InstanceSg:
+    Description: Instance Security Group ID
+    Value: !Ref InstanceSg
+    Export:
+      Name: !Sub ${VpcName}-InstanceSg

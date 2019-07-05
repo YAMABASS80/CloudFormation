@@ -1,17 +1,7 @@
-# Plain AWS Network Stack
-![Plain AWS Network](./img.png "Network")
+# Network Stack
+![AWS Network](../images/network.jpg "Network")
 
 CloudFormation Template for the very typical VPC network configuration. 
-
-## Getting Start
-1. Install [AWS CLI](https://aws.amazon.com/cli/?nc1=h_ls)
-2. Execute following command　　
-```
-aws cloudformation create-stack \
---stack-name NetworkStack \
---template-body file://network.yaml \
---cli-input-json file://params.json
-```
 
 ## Customize
 In `params.json`, you can configure you desired CIDR block for you VPC. 
